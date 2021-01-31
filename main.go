@@ -43,7 +43,10 @@ func main() {
 		os.Exit(-1)
 	}
 	fmt.Println("fetching ssr link list data...")
-	resp, err := http.Get(os.Args[1])
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	resp, err := client.Get(os.Args[1])
 	if err != nil {
 		fmt.Printf("cannot get ssr links, %v\n", err)
 	}
