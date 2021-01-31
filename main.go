@@ -17,6 +17,16 @@ import (
 	"github.com/go-ping/ping"
 )
 
+// Duration just packed time.Duration
+type Duration struct {
+	time.Duration
+}
+
+// MarshalJSON json format for Duration
+func (d Duration) MarshalJSON() (b []byte, err error) {
+	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
+}
+
 // SSConfig config for ss-locl
 type SSConfig struct {
 	// ServerAddress server
@@ -28,7 +38,7 @@ type SSConfig struct {
 	// Password      password
 	Password string `json:"password"`
 	// Delay         ping avg delay
-	Delay time.Duration `json:"delay"`
+	Delay Duration `json:"delay"`
 	// LocalAddress  local_address
 	LocalAddress string `json:"local_address"`
 	// LocalPort     local_port
@@ -43,10 +53,10 @@ func main() {
 		os.Exit(-1)
 	}
 	fmt.Println("fetching ssr link list data...")
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
-	resp, err := client.Get(os.Args[1])
+	// client := http.Client{
+	// 	Timeout: 60 * time.Second,
+	// }
+	resp, err := http.Get(os.Args[1])
 	if err != nil {
 		fmt.Printf("cannot get ssr links, %v\n", err)
 	}
@@ -69,7 +79,6 @@ func main() {
 		if strings.HasPrefix(ssrLinkSlices[i], "ssr://") {
 			ssrLinkB64 := ssrLinkSlices[i][6:]
 			ssrLink, _ := base64.StdEncoding.WithPadding(base64.NoPadding).DecodeString(ssrLinkB64)
-			// fmt.Println(string(ssrLink))
 			servers = append(servers, parse2Json(string(ssrLink)))
 		}
 	}
@@ -83,19 +92,15 @@ func main() {
 			defer wg.Done()
 			wg.Add(1)
 			pinger, err := ping.NewPinger(servers[idx].ServerAddress)
-			pinger.Timeout = 1 * time.Second
+			pinger.Timeout = 5 * time.Second
 			if err != nil {
 				fmt.Printf("error ping: %v, %v", servers[idx].ServerAddress, err)
 			}
 			pinger.Count = 3
-			// fmt.Printf("pinging server: %v\n", servers[idx].ServerAddress)
 			pinger.Run()
 			stats := pinger.Statistics()
-			// fmt.Printf("ping response for %v is: %v\n", servers[idx].ServerAddress, stats.AvgRtt)
 			if stats.PacketsRecv == 3 {
-				servers[idx].Delay = stats.AvgRtt
-			} else {
-				servers[idx].Delay = 1 * time.Hour
+				servers[idx].Delay = Duration{stats.AvgRtt}
 			}
 			bar.Increment()
 		}(i)
@@ -103,7 +108,7 @@ func main() {
 	wg.Wait()
 	bar.Finish()
 	sort.SliceStable(servers, func(i, j int) bool {
-		return servers[i].Delay < servers[j].Delay
+		return servers[i].Delay.Duration < servers[j].Delay.Duration
 	})
 	selectedServer, _ := json.Marshal(servers[0])
 	fmt.Printf("server selected is: %v\n", string(selectedServer))
@@ -122,7 +127,7 @@ func parse2Json(input string) SSConfig {
 		ServerPort:    serverPort,
 		Method:        method,
 		Password:      string(password),
-		Delay:         1 * time.Hour,
+		Delay:         Duration{1 * time.Hour},
 		Timeout:       300,
 		LocalAddress:  "127.0.0.1",
 		LocalPort:     1080,
