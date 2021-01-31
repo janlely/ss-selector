@@ -110,8 +110,11 @@ func main() {
 	sort.SliceStable(servers, func(i, j int) bool {
 		return servers[i].Delay.Duration < servers[j].Delay.Duration
 	})
-	selectedServer, _ := json.Marshal(servers[0])
+	selectedServer, _ := json.MarshalIndent(servers[0], "", "    ")
+	configFile, _ := os.Create("./shadowsocks.cfg")
+	defer configFile.Close()
 	fmt.Printf("server selected is: %v\n", string(selectedServer))
+	configFile.Write(selectedServer)
 
 }
 
